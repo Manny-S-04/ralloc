@@ -1,4 +1,3 @@
-#[allow(unused)]
 use std::ptr::null_mut;
 
 #[derive(Copy, Clone)]
@@ -19,8 +18,10 @@ impl HeapChunk {
 pub struct BumpAllocator<const HEAP_SIZE: usize> {
     heap: [u8; HEAP_SIZE],
     heap_chunks: [HeapChunk; HEAP_SIZE],
+    free_chunks: [HeapChunk; HEAP_SIZE],
     next: usize,
     chunk_next: usize,
+    free_next: usize,
 }
 
 impl<const HEAP_SIZE: usize> BumpAllocator<HEAP_SIZE> {
@@ -28,9 +29,15 @@ impl<const HEAP_SIZE: usize> BumpAllocator<HEAP_SIZE> {
         Self {
             heap: [0; HEAP_SIZE],
             heap_chunks: [HeapChunk::new(); HEAP_SIZE],
+            free_chunks: [HeapChunk::new(); HEAP_SIZE],
             next: 0,
             chunk_next: 0,
+            free_next: 0,
         }
+    }
+
+    pub fn free(&mut self, ptr: *mut u8) {
+
     }
 
     pub fn ralloc(&mut self, size: usize) -> Option<*mut u8> {
