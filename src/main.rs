@@ -1,114 +1,28 @@
-use std::ptr::null_mut;
-
-#[derive(Copy, Clone)]
-struct HeapChunk {
-    ptr: *mut u8,
-    size: usize,
-}
-
-impl HeapChunk {
-    pub const fn new() -> Self {
-        Self {
-            ptr: null_mut(),
-            size: 0,
-        }
-    }
-}
-
-pub struct BumpAllocator<const HEAP_SIZE: usize> {
-    heap: [u8; HEAP_SIZE],
-    heap_chunks: [HeapChunk; HEAP_SIZE],
-    free_chunks: [HeapChunk; HEAP_SIZE],
-    next: usize,
-    chunk_next: usize,
-    free_next: usize,
-}
-
-impl<const HEAP_SIZE: usize> BumpAllocator<HEAP_SIZE> {
-    pub const fn new() -> Self {
-        Self {
-            heap: [0; HEAP_SIZE],
-            heap_chunks: [HeapChunk::new(); HEAP_SIZE],
-            free_chunks: [HeapChunk::new(); HEAP_SIZE],
-            next: 0,
-            chunk_next: 0,
-            free_next: 0,
-        }
-    }
-
-    pub fn free(&mut self, ptr: *mut u8) {
-
-    }
-
-    pub fn ralloc(&mut self, size: usize) -> Option<*mut u8> {
-        if self.next + size > HEAP_SIZE {
-            return None;
-        }
-
-        let ptr = unsafe {
-            self.heap.as_mut_ptr().add(self.next)
-        };
-
-        self.next += size;
-
-        if self.chunk_next + size > HEAP_SIZE {
-            return None;
-        }
-
-        let chunk = HeapChunk{
-            ptr,
-            size
-        };
-
-        self.heap_chunks[self.chunk_next] = chunk;
-        self.chunk_next += 1;
-
-        Some(ptr)
-    }
-
-    pub unsafe fn print_chunks(&mut self) {
-        for i in 0..self.chunk_next {
-            let chunk = self.heap_chunks[i];
-            println!("{:p}: {}", chunk.ptr, chunk.size);
-        }
-    }
-
-    pub unsafe fn print_heap(&mut self, start: *mut u8, len: usize) {
-        unsafe {
-            let ptr = self.heap.as_mut_ptr();
-            for i in 0..self.heap.len() {
-                if !(ptr.add(i) == start) {
-                    continue
-                }
-                for i in 0..len {
-                    let byte_ptr = start.add(i);
-                    println!("{:p}: {}", byte_ptr, *byte_ptr);
-                }
-            }
-        }
-    }
-
-    pub fn reset(&mut self) {
-        for i in 0..self.heap.len() {
-            self.heap[i] = 0;
-        }
-        self.next = 0;
-    }
-}
+use ralloc::Memory;
+use ralloc::freelist::{FreeList, dump, free, init, ralloc};
 
 fn main() {
-    let mut b = BumpAllocator::<1024>::new();
-    let size: usize = 16;
+    let mut mem = Memory([0; 1024]);
+    let mut fl = FreeList::empty();
+    unsafe { init(&mut fl, mem.0.as_mut_ptr(), 1024) };
+
+    let a = ralloc(&mut fl, 16, 16);
+    let b = ralloc(&mut fl, 100, 64);
+    let c = ralloc(&mut fl, 40, 8);
+    for i in 0..16 {
+        unsafe { *a.add(i) = b'A' + i as u8 };
+    }
+    println!("a, b, c allocated");
+    dump(&fl);
+
+    unsafe { free(&mut fl, b) };
+    println!("\nb freed");
+    dump(&fl);
 
     unsafe {
-        if let Some(ptr) = b.ralloc(size) {
-            for i in 0..size {
-                *ptr.add(i) = ('A' as u8) + (i as u8); 
-            }
-        } else {
-            println!("Not enough mem allocated");
-        }
-
-        b.print_chunks();
+        free(&mut fl, a);
+        free(&mut fl, c);
     }
+    println!("\nall freed, back to one block");
+    dump(&fl);
 }
